@@ -31,13 +31,13 @@ as $$
     ) = 'anon';
 $$;
 
--- Ролевые проверки.
+-- Проверка контекста вызова.
 --
--- auth.uid() пустой у внутренних вызовов (service_role, SQL Editor,
--- ежедневный Edge Function) — такие вызовы доверенные. Анонимный
--- PostgREST-запрос (role = 'anon') отвергается всегда; роль
--- 'authenticated' проверяется через profiles.
-create or replace function public.require_admin()
+-- Аноним (role='anon') отвергается всегда. Пустой auth.uid() разрешён
+-- только для внутреннего service_role (Edge Function / backend):
+-- authenticated-запрос без sub больше не считается доверенным.
+-- Обычный вызов с uid проверяется по profiles в конкретной require-*.
+create or replace function public.require_identity()
 returns void
 language plpgsql
 security definer
@@ -47,6 +47,27 @@ begin
   if public.is_anon_call() then
     raise exception 'permission denied';
   end if;
+
+  if auth.uid() is null then
+    if coalesce(current_setting('request.jwt.claim.role', true), '') <> 'service_role'
+       and coalesce(
+         nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
+         ''
+       ) <> 'service_role' then
+      raise exception 'permission denied';
+    end if;
+  end if;
+end;
+$$;
+
+create or replace function public.require_admin()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.require_identity();
   if auth.uid() is not null and not public.is_admin() then
     raise exception 'permission denied';
   end if;
@@ -60,9 +81,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if public.is_anon_call() then
-    raise exception 'permission denied';
-  end if;
+  perform public.require_identity();
   if auth.uid() is not null and not exists (
     select 1 from public.profiles p
     where p.id = auth.uid() and p.role = 'curator'
@@ -79,9 +98,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if public.is_anon_call() then
-    raise exception 'permission denied';
-  end if;
+  perform public.require_identity();
   if auth.uid() is not null and not exists (
     select 1 from public.profiles p
     where p.id = auth.uid() and p.role in ('curator', 'admin')
@@ -689,4 +706,10 @@ begin
   -- Начисление — только внутренний вызов (Edge Function / service role).
   revoke all on function public.run_daily_payout() from public;
   grant execute on function public.run_daily_payout() to service_role;
+
+  -- credit_treasury пишет казну и транзакции: не должен вызываться
+  -- ни anon, ни authenticated. Вызовы внутри security definer RPC
+  -- идут от владельца и проходят по правам владельца.
+  revoke all on function public.credit_treasury(numeric,numeric,text,text,uuid) from public;
+  grant execute on function public.credit_treasury(numeric,numeric,text,text,uuid) to service_role;
 end $$;

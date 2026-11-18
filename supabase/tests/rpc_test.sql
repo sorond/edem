@@ -403,6 +403,8 @@ declare
 begin
   perform public.test_set_identity(v_admin);
 
+  -- Сначала рапорты: они ссылаются на задачи из T8 (FK reports_task_id_fkey).
+  delete from public.reports;
   delete from public.payout_days;
   delete from public.tax_events;
   delete from public.tasks;
@@ -446,6 +448,107 @@ begin
     end if;
   end;
   raise notice 'T10 OK: curator got permission denied';
+end $$;
+
+-- -------------------------------------------------------------
+-- T11. credit_treasury закрыт для anon/authenticated на уровне грантов.
+-- -------------------------------------------------------------
+do $$
+declare
+  v_fn constant text := 'public.credit_treasury(numeric,numeric,text,text,uuid)';
+begin
+  if has_function_privilege('anon', v_fn, 'EXECUTE') then
+    raise exception 'T11: anon has EXECUTE on credit_treasury';
+  end if;
+  if has_function_privilege('authenticated', v_fn, 'EXECUTE') then
+    raise exception 'T11: authenticated has EXECUTE on credit_treasury';
+  end if;
+  if not has_function_privilege('service_role', v_fn, 'EXECUTE') then
+    raise exception 'T11: service_role lost EXECUTE on credit_treasury';
+  end if;
+  raise notice 'T11 OK: credit_treasury not executable by anon/authenticated';
+end $$;
+
+-- -------------------------------------------------------------
+-- T12. Фактические вызовы credit_treasury от anon и куратора падают.
+-- -------------------------------------------------------------
+do $$
+declare
+  v_curator constant uuid := '22222222-2222-2222-2222-222222222222';
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'anon', true);
+  perform set_config('request.jwt.claims', '{"role":"anon"}'::jsonb::text, true);
+  perform set_config('request.jwt', '{"role":"anon"}'::jsonb::text, true);
+
+  begin
+    execute 'set local role anon';
+  exception when others then
+    raise notice 'T12: SET ROLE anon unavailable (%), grant matrix checked', sqlerrm;
+    return;
+  end;
+
+  begin
+    perform public.credit_treasury(1000, 30, 'hack anon');
+    reset role;
+    raise exception 'T12: anon executed credit_treasury';
+  exception when insufficient_privilege then
+    reset role;
+  end;
+
+  perform public.test_set_identity(v_curator);
+  begin
+    execute 'set local role authenticated';
+  exception when others then
+    raise notice 'T12: SET ROLE authenticated unavailable, grant matrix checked';
+    return;
+  end;
+
+  begin
+    perform public.credit_treasury(1000, 30, 'hack curator');
+    reset role;
+    raise exception 'T12: curator executed credit_treasury';
+  exception when insufficient_privilege then
+    reset role;
+  end;
+
+  raise notice 'T12 OK: anon and curator got insufficient_privilege';
+end $$;
+
+-- -------------------------------------------------------------
+-- T13. authenticated без sub больше не доверенный; service_role — да.
+-- -------------------------------------------------------------
+do $$
+declare
+  v_before bigint;
+  v_after bigint;
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claims', '{"role":"authenticated"}'::jsonb::text, true);
+  perform set_config('request.jwt', '{"role":"authenticated"}'::jsonb::text, true);
+
+  begin
+    perform public.adjust_treasury(100, 'no uid');
+    raise exception 'T13: authenticated without sub was allowed';
+  exception when others then
+    if sqlerrm not like '%permission denied%' then
+      raise exception 'T13: unexpected error: %', sqlerrm;
+    end if;
+  end;
+
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  perform set_config('request.jwt.claims', '{"role":"service_role"}'::jsonb::text, true);
+  perform set_config('request.jwt', '{"role":"service_role"}'::jsonb::text, true);
+
+  select balance into v_before from public.treasury where id = 1;
+  perform public.adjust_treasury(100, 'service role');
+  select balance into v_after from public.treasury where id = 1;
+
+  if v_after <> v_before + 100 then
+    raise exception 'T13: service_role call failed: % -> %', v_before, v_after;
+  end if;
+  raise notice 'T13 OK: null uid denied for authenticated, allowed for service_role';
 end $$;
 
 -- Подчистка: тестовые данные и пользователи.
