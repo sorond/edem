@@ -19,7 +19,25 @@ async function selectFrom(table) {
 // table reads are allowed for authenticated users by RLS.
 export const getSettings = () => callRpc('get_settings')
 export const getTreasury = () => callRpc('get_treasury')
-export const getTasks = () => selectFrom('tasks')
+export async function getTasks() {
+  const tasks = await selectFrom('tasks')
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('task_id')
+    .eq('status', 'approved')
+  if (error) throw error
+
+  const approvedByTask = new Map()
+  for (const report of reports ?? []) {
+    if (!report.task_id) continue
+    approvedByTask.set(report.task_id, (approvedByTask.get(report.task_id) ?? 0) + 1)
+  }
+
+  return tasks.map((task) => ({
+    ...task,
+    approved_count: approvedByTask.get(task.id) ?? 0,
+  }))
+}
 export const getReports = () => selectFrom('reports')
 export const getHistory = () => selectFrom('audit_log')
 export const getWithdrawals = () => selectFrom('withdrawals')
