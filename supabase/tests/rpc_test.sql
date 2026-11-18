@@ -1,14 +1,27 @@
 -- =============================================================
--- rpc_test.sql — 10 проверок RPC и RLS.
+-- rpc_test.sql — 14 проверок RPC и RLS.
 -- Запуск после 001_init.sql и 002_rpcs.sql:
 --   supabase db reset && supabase db execute --file supabase/tests/rpc_test.sql
 --   либо вручную в Supabase SQL Editor (проект уже создан).
+--
+-- ОПАСНО: скрипт УДАЛЯЕТ ВСЕ УЧЁТНЫЕ ДАННЫЕ (рапорты, выплаты, задания,
+-- налоговые события, транзакции, аудит, дни выплат) и обнуляет казну.
+-- Запускать только на пустом/новом тестовом проекте, не на рабочем.
+-- Перед запуском в SQL Editor: set edem.run_tests = 'yes';
 --
 -- Скрипт сам создаёт двух тестовых пользователей Auth и профили,
 -- выставляет request.jwt.claim.sub/role как при реальном запросе,
 -- а в конце всё подчищает. Весь скрипт идёт в одной транзакции:
 -- при падении любой проверки изменения не сохраняются.
 -- =============================================================
+
+-- Явный opt-in: без него скрипт не удалит данные и упадёт с ошибкой.
+do $$
+begin
+  if coalesce(current_setting('edem.run_tests', true), '') <> 'yes' then
+    raise exception 'ОПАСНО: тесты удаляют данные. Выполните: set edem.run_tests = ''yes'';';
+  end if;
+end $$;
 
 begin;
 
@@ -549,6 +562,51 @@ begin
     raise exception 'T13: service_role call failed: % -> %', v_before, v_after;
   end if;
   raise notice 'T13 OK: null uid denied for authenticated, allowed for service_role';
+end $$;
+
+-- -------------------------------------------------------------
+-- T14. Выплата больше казны: подтверждение падает, казна не минусует.
+-- -------------------------------------------------------------
+do $$
+declare
+  v_admin constant uuid := '11111111-1111-1111-1111-111111111111';
+  v_curator constant uuid := '22222222-2222-2222-2222-222222222222';
+  v_id uuid;
+  v_balance bigint;
+  v_status text;
+  v_raised boolean := false;
+begin
+  delete from public.tax_events;
+  delete from public.withdrawals;
+  update public.treasury set balance = 100000 where id = 1;
+
+  perform public.test_set_identity(v_curator);
+  v_id := public.request_withdrawal(150000, 'тест перерасхода');
+
+  perform public.test_set_identity(v_admin);
+  begin
+    perform public.review_withdrawal(v_id, 'approved', 'ок');
+  exception when others then
+    v_raised := true;
+    if sqlerrm not like '%insufficient funds%' then
+      raise exception 'T14: unexpected error: %', sqlerrm;
+    end if;
+  end;
+
+  if not v_raised then
+    raise exception 'T14: oversized withdrawal was approved';
+  end if;
+
+  select balance into v_balance from public.treasury where id = 1;
+  select status into v_status from public.withdrawals where id = v_id;
+
+  if v_balance <> 100000 then
+    raise exception 'T14: treasury balance %, expected 100000', v_balance;
+  end if;
+  if v_status is distinct from 'pending' then
+    raise exception 'T14: status %, expected pending', v_status;
+  end if;
+  raise notice 'T14 OK: oversized withdrawal blocked, treasury unchanged';
 end $$;
 
 -- Подчистка: тестовые данные и пользователи.

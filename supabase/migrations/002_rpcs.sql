@@ -434,6 +434,11 @@ begin
   if p_decision = 'approved' then
     select balance into v_before from public.treasury where id = 1 for update;
 
+    -- казна не может уйти в минус при подтверждении выплаты.
+    if v_before < v_w.amount_gross then
+      raise exception 'insufficient funds';
+    end if;
+
     update public.treasury
       set balance = balance - v_w.amount_gross
       where id = 1;

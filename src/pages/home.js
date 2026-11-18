@@ -57,6 +57,50 @@ function announceNewUrgentTasks(tasks) {
   writeSeenUrgentIds(seen)
 }
 
+// Пока главная открыта, задания опрашиваются повторно: срочное задание,
+// созданное админом без перезагрузки страницы, всё равно должно уведомить.
+const URGENT_POLL_MS = 20_000
+const HOME_HASH = '#/home'
+
+let urgentPollTimer = null
+let urgentPollToken = 0
+let urgentPollInFlight = false
+
+function stopUrgentPolling() {
+  if (urgentPollTimer !== null) {
+    clearInterval(urgentPollTimer)
+    urgentPollTimer = null
+  }
+}
+
+function startUrgentPolling(token) {
+  stopUrgentPolling()
+  urgentPollTimer = setInterval(async () => {
+    if (token !== urgentPollToken || urgentPollInFlight) return
+    urgentPollInFlight = true
+    try {
+      const tasks = await getTasks()
+      if (token !== urgentPollToken) return
+      const rows = Array.isArray(tasks) ? tasks : []
+      announceNewUrgentTasks(rows.filter((task) => task.kind === 'urgent'))
+    } catch (error) {
+      console.error('urgent poll:', error)
+    } finally {
+      urgentPollInFlight = false
+    }
+  }, URGENT_POLL_MS)
+}
+
+// Уход с главной должен останавливать опрос даже если renderHome больше не вызывается.
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    if (location.hash !== HOME_HASH) {
+      urgentPollToken += 1
+      stopUrgentPolling()
+    }
+  })
+}
+
 function taskCard(task) {
   const title = escapeHtml(task.title ?? 'БЕЗ НАЗВАНИЯ')
   const approved = Math.max(0, Number(task.approved ?? task.approved_count ?? 0) || 0)
@@ -128,18 +172,22 @@ async function mountWithdrawalForm(root) {
     return
   }
 
+  function showPreview(amountGross, rate) {
+    const { taxAmount, net } = withdrawal({ amountGross, taxRate: rate })
+    preview.textContent = [
+      `Запрос: ${formatMoney(amountGross)}`,
+      `Налог: ${formatPercent(rate)} → ${formatMoney(taxAmount)}`,
+      `К выдаче в игре: ${formatMoney(net)}`,
+    ].join('\n')
+  }
+
   function updatePreview() {
     const amountGross = Number(amountInput.value)
     if (!Number.isSafeInteger(amountGross) || amountGross <= 0) {
       preview.textContent = 'ВВЕДИТЕ СУММУ'
       return
     }
-    const { taxAmount, net } = withdrawal({ amountGross, taxRate })
-    preview.textContent = [
-      `Запрос: ${formatMoney(amountGross)}`,
-      `Налог: ${formatPercent(taxRate)} → ${formatMoney(taxAmount)}`,
-      `К выдаче в игре: ${formatMoney(net)}`,
-    ].join('\n')
+    showPreview(amountGross, taxRate)
   }
 
   form.addEventListener('input', updatePreview)
@@ -154,6 +202,18 @@ async function mountWithdrawalForm(root) {
     }
     submit.disabled = true
     try {
+      // Ставка может измениться после монтирования формы. Перепроверяем её
+      // непосредственно перед RPC, иначе превью разойдётся со списанием.
+      const freshRate = Number(await callRpc('current_tax_rate'))
+      if (!Number.isFinite(freshRate)) throw new Error('invalid tax rate')
+
+      if (freshRate !== taxRate) {
+        taxRate = freshRate
+        showPreview(amountGross, taxRate)
+        notify('НАЛОГ ИЗМЕНИЛСЯ — ПРОВЕРЬТЕ РАСЧЁТ', 'warning')
+        return
+      }
+
       await callRpc('request_withdrawal', {
         p_amount: amountGross,
         p_comment: commentInput.value.trim(),
@@ -171,10 +231,13 @@ async function mountWithdrawalForm(root) {
 }
 
 export async function renderHome(root) {
+  const token = ++urgentPollToken
+  stopUrgentPolling()
   root.innerHTML = '<p class="placeholder">ЗАГРУЗКА...</p>'
 
   try {
     const [treasury, tasks, role] = await Promise.all([getTreasury(), getTasks(), getRole()])
+    if (token !== urgentPollToken) return
     const balance = Number(treasury?.balance ?? treasury ?? 0) || 0
     const rows = Array.isArray(tasks) ? tasks : []
     const weekly = rows.filter((task) => task.kind !== 'urgent')
@@ -197,7 +260,10 @@ export async function renderHome(root) {
     `
 
     if (role === 'curator') await mountWithdrawalForm(root)
+    if (token !== urgentPollToken) return
+    startUrgentPolling(token)
   } catch (error) {
+    if (token !== urgentPollToken) return
     root.innerHTML = '<p class="placeholder" role="alert">ОШИБКА ЗАГРУЗКИ ДАННЫХ</p>'
     console.error('renderHome:', error)
   }
