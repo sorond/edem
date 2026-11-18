@@ -2,12 +2,14 @@ import { getRole } from './auth.js'
 import { renderLogin } from './pages/login.js'
 import { renderHome } from './pages/home.js'
 import { renderReports } from './pages/reports.js'
+import { renderHistory } from './pages/history.js'
 
 const root = document.getElementById('app')
 const DEFAULT_ROUTE = '#/home'
 const routes = {
   [DEFAULT_ROUTE]: renderHome,
   '#/reports': renderReports,
+  '#/history': renderHistory,
 }
 
 async function render() {
