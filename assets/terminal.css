@@ -4,6 +4,8 @@
   --fg-dim: #1f8f10;
   --border: #1a7a0d;
   --error: #ff4d4d;
+  --warning: #ffd033;
+  --urgent: #ff551a;
 }
 
 * {
@@ -163,6 +165,131 @@ body {
   text-align: center;
 }
 
+.treasury {
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.treasury__label {
+  font-size: 13px;
+  letter-spacing: 0.35em;
+  color: var(--fg-dim);
+}
+
+.treasury__amount {
+  margin-top: 8px;
+  font-size: clamp(40px, 8vw, 72px);
+  font-weight: bold;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+}
+
+.task-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.task-column__title {
+  margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: normal;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-empty {
+  margin: 0;
+  color: var(--fg-dim);
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+}
+
+.task {
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: rgba(57, 255, 20, 0.03);
+}
+
+.task__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.task__title {
+  overflow-wrap: anywhere;
+}
+
+.task__goal {
+  flex: none;
+  color: var(--fg-dim);
+}
+
+.progress {
+  height: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  background: #010401;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--fg);
+  box-shadow: 0 0 10px var(--fg);
+  transition: width 0.3s ease;
+}
+
+.task.urgent {
+  border-color: var(--warning);
+  animation: urgent-pulse 1.4s ease-in-out infinite;
+}
+
+.task.urgent .task__goal {
+  color: var(--warning);
+}
+
+.task.urgent .progress-fill {
+  background: linear-gradient(90deg, var(--warning), var(--urgent));
+  box-shadow: 0 0 12px var(--urgent);
+}
+
+@keyframes urgent-pulse {
+  0%,
+  100% {
+    border-color: var(--warning);
+    box-shadow: 0 0 8px rgba(255, 208, 51, 0.35), inset 0 0 8px rgba(255, 208, 51, 0.1);
+  }
+
+  50% {
+    border-color: var(--urgent);
+    box-shadow: 0 0 14px rgba(255, 85, 26, 0.6), inset 0 0 10px rgba(255, 85, 26, 0.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task.urgent {
+    animation: none;
+  }
+
+  .progress-fill {
+    transition: none;
+  }
+}
+
 @media (max-width: 640px) {
   .app {
     padding: 20px 12px;
@@ -170,5 +297,9 @@ body {
 
   .login {
     padding: 20px;
+  }
+
+  .task-columns {
+    grid-template-columns: 1fr;
   }
 }

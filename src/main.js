@@ -1,7 +1,12 @@
 import { getRole } from './auth.js'
 import { renderLogin } from './pages/login.js'
+import { renderHome } from './pages/home.js'
 
 const root = document.getElementById('app')
+const DEFAULT_ROUTE = '#/home'
+const routes = {
+  [DEFAULT_ROUTE]: renderHome,
+}
 
 async function render() {
   const role = await getRole()
@@ -9,8 +14,8 @@ async function render() {
     renderLogin(root)
     return
   }
-  // Minimal shell: page modules are wired in by later tasks.
-  root.innerHTML = '<p class="placeholder">ЗАГРУЗКА...</p>'
+  const renderPage = routes[location.hash] ?? routes[DEFAULT_ROUTE]
+  await renderPage(root)
 }
 
 window.addEventListener('hashchange', render)
