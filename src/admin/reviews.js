@@ -139,12 +139,15 @@ async function submitReview(root, button) {
   if (!id || (decision !== 'approved' && decision !== 'rejected')) return
 
   const type = card.getAttribute('data-review-card')
+  const controls = Array.from(card.querySelectorAll('[data-review-decision]'))
+  if (controls.some((control) => control.disabled)) return
+
   const comment = card.querySelector('[data-review-comment]')?.value.trim() ?? ''
   const errorElement = root.querySelector(
     type === 'report' ? '[data-reports-error]' : '[data-withdrawals-error]',
   )
   errorElement.hidden = true
-  button.disabled = true
+  for (const control of controls) control.disabled = true
 
   try {
     if (type === 'report') {
@@ -155,10 +158,11 @@ async function submitReview(root, button) {
     await refreshAll(root)
     notify('Готово', 'success')
   } catch (error) {
-    button.disabled = false
     showMessage(errorElement, 'ОШИБКА ПРОВЕРКИ')
     notify('ОШИБКА', 'error')
     console.error('submitReview:', error)
+  } finally {
+    for (const control of controls) control.disabled = false
   }
 }
 
