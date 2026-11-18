@@ -1,25 +1,44 @@
 const CLASS_BY_KIND = {
   success: 'toast toast--success',
   error: 'toast toast--error',
+  warning: 'toast toast--warning',
 }
 
 export function notify(message, kind = 'success') {
   const container = document.getElementById('toast-container')
   if (!container) return
 
-  const isError = kind === 'error'
   const toast = document.createElement('div')
   toast.className = CLASS_BY_KIND[kind] ?? CLASS_BY_KIND.success
   toast.textContent = message
-  Object.assign(toast.style, {
-    padding: '10px 14px',
-    border: `1px solid ${isError ? 'var(--error)' : 'var(--border)'}`,
-    background: 'rgba(5, 11, 5, 0.95)',
-    color: isError ? 'var(--error)' : 'var(--fg)',
-    textShadow: `0 0 6px ${isError ? 'var(--error)' : 'var(--fg)'}`,
-    letterSpacing: '0.15em',
-  })
-
   container.appendChild(toast)
   setTimeout(() => toast.remove(), 4000)
+}
+
+// Короткий прямоугольный сигнал 880 Гц. Браузер может запретить аудио без
+// действия пользователя — в этом случае уведомление остаётся только визуальным.
+export function playBeep() {
+  try {
+    const AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext
+    if (!AudioContextClass) return
+
+    const context = new AudioContextClass()
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    const now = context.currentTime
+
+    oscillator.type = 'square'
+    oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.08, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
+
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.onended = () => void context.close?.()?.catch?.(() => {})
+    oscillator.start(now)
+    oscillator.stop(now + 0.15)
+    void context.resume?.()?.catch?.(() => {})
+  } catch {
+    // AudioContext недоступен или заблокирован — тихо продолжаем.
+  }
 }

@@ -1,6 +1,118 @@
-# Edem
+# ЭДЕМ
 
-Экономическая модель и игровая система. Спецификация и планы: `docs/`.
+Учётный сайт фракции: казна, задания, рапорты, запросы выплат и история операций. Фронтенд — статические файлы на GitHub Pages, данные — Supabase (Postgres, Auth, Storage). Спецификация и планы: `docs/`.
+
+Сайт только считает и фиксирует операции. **Реальные деньги в игре Эдем передаёт вручную.**
+
+## Развёртывание
+
+### 1. Создать проект Supabase
+
+1. Войти в [Supabase](https://supabase.com/dashboard), создать новый проект (Project URL, регион, пароль базы данных — сохранить).
+2. Открыть **Project Settings → API**. Понадобятся:
+   - **Project URL** (`https://<project-ref>.supabase.co`);
+   - **anon public** key — для фронтенда;
+   - **service_role** key — только для Edge Function и бэкапов, в сайт не попадает.
+
+### 2. Выполнить миграции
+
+Открыть **SQL Editor**, создать новый запрос и выполнить по порядку:
+
+1. содержимое `supabase/migrations/001_init.sql` (таблицы, RLS, Storage, стартовые настройки);
+2. содержимое `supabase/migrations/002_rpcs.sql` (RPC экономики и админки).
+
+Порядок важен. SQL Editor выполняет SQL от имени владельца базы, поэтому локальный Supabase CLI не нужен. Повторный запуск файлов безопасен.
+
+Миграция создаёт публичный bucket `report-screenshots` для скриншотов рапортов и стартовые значения настроек, включая логины `curator@edem.local` и `edem@edem.local`.
+
+### 3. Создать двух пользователей Auth
+
+**Authentication → Users → Add user**, создать двух пользователей с email:
+
+- `curator@edem.local` — куратор;
+- `edem@edem.local` — Эдем (админ).
+
+Включить подтверждение email при создании (опция подтверждения/«Auto Confirm» в диалоге), иначе вход будет заблокирован. Регистрация через сайт отключена. Пароли можно задать сейчас временные, финальные — на шаге 7.
+
+Если логины меняются, они лежат в таблице `settings` (`curator_email`, `admin_email`) и должны совпадать с email пользователей Auth.
+
+### 4. Записать роли в `profiles`
+
+В **SQL Editor** выполнить (SQL Editor обходит RLS, поэтому вставка разрешена даже до первого входа):
+
+```sql
+insert into public.profiles (id, role, display_name)
+select id, 'curator', 'Куратор'
+from auth.users where email = 'curator@edem.local'
+on conflict (id) do update
+  set role = excluded.role, display_name = excluded.display_name;
+
+insert into public.profiles (id, role, display_name)
+select id, 'admin', 'Эдем'
+from auth.users where email = 'edem@edem.local'
+on conflict (id) do update
+  set role = excluded.role, display_name = excluded.display_name;
+```
+
+Проверка: `select p.role, u.email from public.profiles p join auth.users u on u.id = p.id;` — должно быть две строки.
+
+### 5. Указать ключи в `src/config.js`
+
+Заменить плейсхолдеры на значения из шага 1:
+
+```js
+export const SUPABASE_URL = 'https://<project-ref>.supabase.co'
+export const SUPABASE_ANON_KEY = '<anon public key>'
+```
+
+Закоммитить и запушить изменения. `service_role` key и пароль базы в репозиторий **не добавлять**.
+
+### 6. GitHub Pages, Edge Function и секреты
+
+**Edge Function «ежедневная выплата»**
+
+1. В Supabase: **Edge Functions → Create a new function**, имя `daily-payout`; содержимое — код из `supabase/functions/daily-payout/index.ts`.
+2. Там же во вкладке **Secrets** добавить:
+   - `SUPABASE_URL` — URL проекта;
+   - `SUPABASE_SERVICE_ROLE_KEY` — service_role key;
+   - `DAILY_PAYOUT_SECRET` — случайная длинная строка (например, вывод `openssl rand -hex 32`).
+
+**GitHub Pages**
+
+Репозиторий → **Settings → Pages → Build and deployment**: Source — **Deploy from a branch**, Branch — `main`, папка — `/(root)`. Сборка не нужна. Сохранить, дождаться зелёного статуса deployment. Адрес страницы: `https://<владелец>.github.io/<репозиторий>/`.
+
+**Authentication → URL Configuration**: Site URL = адрес GitHub Pages, туда же добавить Redirect URLs (`https://<владелец>.github.io/<репозиторий>/**`) — это нужно для ссылок восстановления пароля.
+
+**Секреты репозитория** (Settings → Secrets and variables → Actions → New repository secret):
+
+| Секрет | Значение |
+| --- | --- |
+| `SUPABASE_URL` | URL проекта, такой же как в `src/config.js` |
+| `DAILY_PAYOUT_SECRET` | та же строка, что и в секретах Edge Function |
+| `SUPABASE_DATABASE_URL` | строка подключения к БД из **Database → Connection string → Direct connection** (порт 5432, с паролем). Transaction pooler (порт 6543) для `pg_dump` не подходит |
+
+Расписание Actions: начисление — 21:00 UTC (00:00 МСК следующего дня), бэкап — 22:00 UTC. Оба workflow можно запустить вручную через **Actions → Run workflow**.
+
+### 7. Назначить пароли
+
+В **Authentication → Users** для каждого пользователя задать финальный пароль (действие сброса/изменения пароля). Сообщить пароли куратору и Эдему лично. На сайте смены пароля нет.
+
+Проверить вход на странице GitHub Pages: вкладки «Куратор» и «ЭDEM», при верном пароле появляется навигация; ссылка «АДМИНКА» видна только Эдему.
+
+## Проверка вручную
+
+Для сценария нужны два независимых сеанса браузера (обычное окно + режим инкогнито): куратор и Эдем не могут быть одновременно авторизованы в одном браузере.
+
+1. Войти как куратор — видны казна и задания.
+2. Отправить рапорт с заданием и рапорт без задания.
+3. Запросить выплату 60 000 — в расчёте должно быть 42 000 к выдаче при налоге 30%.
+4. Войти как Эдем — видна ссылка «АДМИНКА».
+5. Создать срочное задание — у куратора должны появиться звуковой сигнал и тост «НОВОЕ СРОЧНОЕ ЗАДАНИЕ».
+6. Принять рапорты — прогресс задания и казна обновились.
+7. Принять выплату — казна уменьшилась на 60 000.
+8. Открыть «ИСТОРИЮ» — все операции зафиксированы.
+
+Уведомление о срочном задании привязано к `id` задания: список уже показанных id хранится в `localStorage` браузера под ключом `edem_seen_urgent_ids`. При первом открытии главной текущие задания запоминаются без уведомления; звук и тост появляются только для новых id. Браузер может блокировать звук до первого взаимодействия со страницей — тост при этом всё равно показывается.
 
 ## Разработка
 

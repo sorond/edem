@@ -2,7 +2,7 @@ import { callRpc, getTreasury, getTasks } from '../api.js'
 import { getRole } from '../auth.js'
 import { withdrawal } from '../economy.js'
 import { formatMoney, formatPercent } from '../format.js'
-import { notify } from '../notify.js'
+import { notify, playBeep } from '../notify.js'
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -12,6 +12,49 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#39;',
   })[char])
+}
+
+const SEEN_URGENT_KEY = 'edem_seen_urgent_ids'
+
+function readSeenUrgentIds() {
+  try {
+    const raw = localStorage.getItem(SEEN_URGENT_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    return new Set(parsed.filter((id) => typeof id === 'string' && id))
+  } catch {
+    return null
+  }
+}
+
+function writeSeenUrgentIds(ids) {
+  try {
+    localStorage.setItem(SEEN_URGENT_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Хранилище недоступно (приватный режим, лимит) — уведомления без истории.
+  }
+}
+
+function announceNewUrgentTasks(tasks) {
+  const ids = tasks
+    .map((task) => task.id)
+    .filter((id) => typeof id === 'string' && id)
+  const current = new Set(ids)
+  const seen = readSeenUrgentIds()
+
+  // Первый запуск: запоминаем текущие задания, но не тревожим пользователя.
+  if (!seen) {
+    writeSeenUrgentIds(current)
+    return
+  }
+
+  if (ids.some((id) => !seen.has(id))) {
+    playBeep()
+    notify('НОВОЕ СРОЧНОЕ ЗАДАНИЕ', 'warning')
+  }
+  for (const id of current) seen.add(id)
+  writeSeenUrgentIds(seen)
 }
 
 function taskCard(task) {
@@ -136,6 +179,8 @@ export async function renderHome(root) {
     const rows = Array.isArray(tasks) ? tasks : []
     const weekly = rows.filter((task) => task.kind !== 'urgent')
     const urgent = rows.filter((task) => task.kind === 'urgent')
+
+    announceNewUrgentTasks(urgent)
 
     root.innerHTML = `
       <section class="home">
