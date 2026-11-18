@@ -9,6 +9,6 @@ jobs:
     steps:
       - name: Invoke daily payout
         run: |
-          curl -X POST \
+          curl --fail-with-body -X POST \
             -H "Authorization: Bearer ${{ secrets.DAILY_PAYOUT_SECRET }}" \
             "${{ secrets.SUPABASE_URL }}/functions/v1/daily-payout"
