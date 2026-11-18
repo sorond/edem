@@ -86,21 +86,36 @@ function todayIso() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 }
 
+async function removeUploads(paths) {
+  if (!paths.length) return
+  const result = await supabase.storage.from(BUCKET).remove(paths)
+  if (result?.error) console.error('cleanup:', result.error)
+}
+
 async function uploadScreenshots(files) {
   const storage = supabase.storage.from(BUCKET)
   const paths = []
-  for (const [index, file] of files.entries()) {
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${index}-${safeFileName(file.name)}`
-    const { error } = await storage.upload(path, file, {
-      contentType: file.type || 'application/octet-stream',
-      upsert: false,
-    })
-    if (error) throw error
-    paths.push(path)
-  }
-  return {
-    paths,
-    urls: paths.map((path) => storage.getPublicUrl(path).data.publicUrl),
+  try {
+    for (const [index, file] of files.entries()) {
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${index}-${safeFileName(file.name)}`
+      const { error } = await storage.upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      })
+      if (error) throw error
+      paths.push(path)
+    }
+    return {
+      paths,
+      urls: paths.map((path) => storage.getPublicUrl(path).data.publicUrl),
+    }
+  } catch (error) {
+    try {
+      await removeUploads(paths)
+    } catch (cleanupError) {
+      console.error('cleanup:', cleanupError)
+    }
+    throw error
   }
 }
 
@@ -124,12 +139,10 @@ async function submitReport(event, form, message, root) {
     }
     showMessage(message, 'РАПОРТ ОТПРАВЛЕН', false)
   } catch (error) {
-    if (uploaded.paths.length) {
-      try {
-        await supabase.storage.from(BUCKET).remove(uploaded.paths)
-      } catch (cleanupError) {
-        console.error('submitReport cleanup:', cleanupError)
-      }
+    try {
+      await removeUploads(uploaded.paths)
+    } catch (cleanupError) {
+      console.error('cleanup:', cleanupError)
     }
     showMessage(message, 'ОШИБКА ОТПРАВКИ РАПОРТА', true)
     console.error('submitReport:', error)
