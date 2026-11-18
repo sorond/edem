@@ -1,0 +1,17 @@
+name: backup
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pg_dump
+        run: pg_dump "${{ secrets.SUPABASE_DATABASE_URL }}" > backup.sql
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edem-backup
+          path: backup.sql
+          retention-days: 7
