@@ -1,0 +1,174 @@
+:root {
+  --bg: #050b05;
+  --fg: #39ff14;
+  --fg-dim: #1f8f10;
+  --border: #1a7a0d;
+  --error: #ff4d4d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Courier New", Consolas, monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  text-shadow: 0 0 6px var(--fg);
+}
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.25) 3px,
+    rgba(0, 0, 0, 0.25) 4px
+  );
+}
+
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 0.3em;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.placeholder {
+  text-align: center;
+  color: var(--fg-dim);
+}
+
+.toast-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.login {
+  max-width: 380px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  padding: 28px;
+  box-shadow: 0 0 18px rgba(57, 255, 20, 0.15) inset;
+}
+
+.login__title {
+  margin: 0 0 24px;
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 0.15em;
+}
+
+.login__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+
+.tab--active {
+  color: var(--fg);
+  border-color: var(--fg);
+  background: rgba(57, 255, 20, 0.08);
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login__label {
+  font-size: 13px;
+  letter-spacing: 0.15em;
+}
+
+.input {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  text-shadow: inherit;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--fg);
+  box-shadow: 0 0 8px rgba(57, 255, 20, 0.35);
+}
+
+.btn {
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--fg);
+  color: var(--fg);
+  font: inherit;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: rgba(57, 255, 20, 0.15);
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.5);
+}
+
+.login__error {
+  margin: 0;
+  color: var(--error);
+  text-shadow: 0 0 6px var(--error);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .app {
+    padding: 20px 12px;
+  }
+
+  .login {
+    padding: 20px;
+  }
+}

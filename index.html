@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ЭДЕМ</title>
+  <link rel="stylesheet" href="./assets/terminal.css">
+  <script type="importmap">
+  { "imports": { "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm" } }
+  </script>
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <header class="header">
+    <div class="logo">ЭДЕМ</div>
+  </header>
+  <main id="app" class="app"></main>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
