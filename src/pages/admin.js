@@ -4,6 +4,7 @@ import { mountSettings } from '../admin/settings.js'
 import { mountTreasury } from '../admin/treasury.js'
 import { mountTasks } from '../admin/tasks.js'
 import { mountEvents } from '../admin/events.js'
+import { renderReviews } from '../admin/reviews.js'
 
 export async function renderAdmin(root) {
   const role = await getRole()
@@ -34,6 +35,8 @@ export async function renderAdmin(root) {
       <div data-admin-tasks></div>
       <h2 class="task-column__title">СОБЫТИЯ</h2>
       <div data-admin-events></div>
+      <h2 class="task-column__title">ПРОВЕРКА</h2>
+      <div data-admin-reviews></div>
     </section>
   `
 
@@ -41,4 +44,5 @@ export async function renderAdmin(root) {
   mountTreasury(root.querySelector('[data-admin-treasury]'))
   mountTasks(root.querySelector('[data-admin-tasks]'))
   mountEvents(root.querySelector('[data-admin-events]'))
+  renderReviews(root.querySelector('[data-admin-reviews]'))
 }
