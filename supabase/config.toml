@@ -16,3 +16,6 @@ enable_signup = false
 [storage]
 enabled = true
 file_size_limit = "10MiB"
+
+[functions.daily-payout]
+verify_jwt = false
