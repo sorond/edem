@@ -1,5 +1,5 @@
 import { callRpc, getReports, getWithdrawals } from '../api.js'
-import { formatMoney, formatPercent } from '../format.js'
+import { formatMoney } from '../format.js'
 import { notify } from '../notify.js'
 
 const TYPE_LABEL = {
@@ -80,18 +80,15 @@ function reportCardHtml(report) {
 
 function withdrawalCardHtml(withdrawal) {
   const gross = formatMoney(Number(withdrawal.amount_gross ?? 0))
-  const tax = formatMoney(Number(withdrawal.tax_amount ?? 0))
   const net = formatMoney(Number(withdrawal.amount_net ?? 0))
-  const rate = formatPercent(Number(withdrawal.tax_rate ?? 0))
   return `
     <article class="task" data-review-card="withdrawal" data-review-id="${escapeHtml(withdrawal.id ?? '')}">
       <div class="task__head">
         <span class="task__title">КУРАТОР: ${escapeHtml(withdrawal.curator ?? '—')}</span>
         <span class="task__goal">${escapeHtml(withdrawal.created_at ?? '—')}</span>
       </div>
-      <div class="login__label">ЗАПРОШЕНО (GROSS): ${gross}</div>
-      <div class="login__label">НАЛОГ ${rate}: ${tax}</div>
-      <div class="login__label">К ВЫДАЧЕ (NET): ${net}</div>
+      <div class="login__label">ЗАПРОШЕНО: ${gross}</div>
+      <div class="login__label">К ВЫДАЧЕ: ${net}</div>
       <div class="login__label">КОММЕНТАРИЙ: ${escapeHtml(withdrawal.comment ?? '—')}</div>
       ${reviewActionsHtml()}
     </article>

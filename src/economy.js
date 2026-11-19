@@ -30,10 +30,6 @@ export function reportTariff({ interactionType, tariffs, linkedToTask }) {
   return linkedToTask ? Math.round(tariff * 0.2) : tariff
 }
 
-export function withdrawal({ amountGross, taxRate }) {
-  return taxedAmount(amountGross, taxRate)
-}
-
 export function applyCap({ balance, incoming, cap }) {
   const room = Math.max(0, cap - balance)
   const credited = Math.min(incoming, room)

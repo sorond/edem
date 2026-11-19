@@ -205,15 +205,15 @@ begin
   select tax_rate, tax_amount, amount_net into v_rate, v_tax, v_net
     from public.withdrawals where id = v_id;
 
-  if v_rate <> 30 then raise exception 'T4: tax_rate %, expected 30', v_rate; end if;
-  if v_tax <> 18000 then raise exception 'T4: tax_amount %, expected 18000', v_tax; end if;
-  if v_net <> 42000 then raise exception 'T4: amount_net %, expected 42000', v_net; end if;
+  if v_rate <> 0 then raise exception 'T4: tax_rate %, expected 0', v_rate; end if;
+  if v_tax <> 0 then raise exception 'T4: tax_amount %, expected 0', v_tax; end if;
+  if v_net <> 60000 then raise exception 'T4: amount_net %, expected 60000', v_net; end if;
 
   perform public.test_set_identity(v_admin);
   perform public.review_withdrawal(v_id, 'approved', 'ок');
 
   select balance into v_balance from public.treasury where id = 1;
-  select amount into v_amount from public.transactions
+  select amount, tax_amount into v_amount, v_tax from public.transactions
     where type = 'withdrawal' order by id desc limit 1;
 
   if v_balance <> 40000 then
@@ -222,7 +222,10 @@ begin
   if v_amount <> -60000 then
     raise exception 'T4: transaction amount %, expected -60000', v_amount;
   end if;
-  raise notice 'T4 OK: withdrawal 60000, net 42000';
+  if v_tax <> 0 then
+    raise exception 'T4: transaction tax_amount %, expected 0', v_tax;
+  end if;
+  raise notice 'T4 OK: withdrawal 60000, net 60000, no tax';
 end $$;
 
 -- -------------------------------------------------------------

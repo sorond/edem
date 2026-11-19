@@ -1,7 +1,6 @@
 import { callRpc, getTreasury, getTasks } from '../api.js'
 import { getRole } from '../auth.js'
-import { withdrawal } from '../economy.js'
-import { formatMoney, formatPercent } from '../format.js'
+import { formatMoney } from '../format.js'
 import { notify, playBeep } from '../notify.js'
 
 function escapeHtml(value) {
@@ -137,7 +136,7 @@ function withdrawalFormHtml() {
     <section class="withdrawal" data-withdrawal style="margin-top: 28px; max-width: 640px;">
       <h2 class="task-column__title">ЗАПРОС ВЫПЛАТЫ</h2>
       <form class="login__form" data-withdrawal-form>
-        <label class="login__label" for="withdrawal-amount">СУММА ЗАПРОСА (GROSS)</label>
+        <label class="login__label" for="withdrawal-amount">СУММА ЗАПРОСА</label>
         <input class="input" id="withdrawal-amount" name="amountGross" type="number" min="1" step="1" inputmode="numeric" placeholder="60000" required>
 
         <label class="login__label" for="withdrawal-comment">КОММЕНТАРИЙ</label>
@@ -160,34 +159,14 @@ async function mountWithdrawalForm(root) {
   const preview = root.querySelector('[data-withdrawal-preview]')
   const submit = form.querySelector('[data-withdrawal-submit]')
 
-  // Активная налоговая ставка, а не base_tax: события меняют итог.
-  let taxRate
-  try {
-    taxRate = Number(await callRpc('current_tax_rate'))
-    if (!Number.isFinite(taxRate)) throw new Error('invalid tax rate')
-  } catch (error) {
-    preview.textContent = 'НАЛОГ НЕДОСТУПЕН'
-    submit.disabled = true
-    console.error('current_tax_rate:', error)
-    return
-  }
-
-  function showPreview(amountGross, rate) {
-    const { taxAmount, net } = withdrawal({ amountGross, taxRate: rate })
-    preview.textContent = [
-      `Запрос: ${formatMoney(amountGross)}`,
-      `Налог: ${formatPercent(rate)} → ${formatMoney(taxAmount)}`,
-      `К выдаче в игре: ${formatMoney(net)}`,
-    ].join('\n')
-  }
-
+  // Налог уже удержан при зачислении в казну, при выводе он не применяется.
   function updatePreview() {
-    const amountGross = Number(amountInput.value)
-    if (!Number.isSafeInteger(amountGross) || amountGross <= 0) {
+    const amount = Number(amountInput.value)
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
       preview.textContent = 'ВВЕДИТЕ СУММУ'
       return
     }
-    showPreview(amountGross, taxRate)
+    preview.textContent = `К выдаче в игре: ${formatMoney(amount)}`
   }
 
   form.addEventListener('input', updatePreview)
@@ -202,18 +181,6 @@ async function mountWithdrawalForm(root) {
     }
     submit.disabled = true
     try {
-      // Ставка может измениться после монтирования формы. Перепроверяем её
-      // непосредственно перед RPC, иначе превью разойдётся со списанием.
-      const freshRate = Number(await callRpc('current_tax_rate'))
-      if (!Number.isFinite(freshRate)) throw new Error('invalid tax rate')
-
-      if (freshRate !== taxRate) {
-        taxRate = freshRate
-        showPreview(amountGross, taxRate)
-        notify('НАЛОГ ИЗМЕНИЛСЯ — ПРОВЕРЬТЕ РАСЧЁТ', 'warning')
-        return
-      }
-
       await callRpc('request_withdrawal', {
         p_amount: amountGross,
         p_comment: commentInput.value.trim(),

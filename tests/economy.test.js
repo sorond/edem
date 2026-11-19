@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveTaxRate, dailyPayout, taxedAmount,
-  reportTariff, withdrawal, applyCap
+  reportTariff, applyCap
 } from '../src/economy.js'
 
 describe('resolveTaxRate', () => {
@@ -46,13 +46,6 @@ describe('reportTariff', () => {
     const tariffs = { external: 10000, internal: 5000 }
     expect(reportTariff({ interactionType: 'external', tariffs, linkedToTask: true })).toBe(2000)
     expect(reportTariff({ interactionType: 'internal', tariffs, linkedToTask: true })).toBe(1000)
-  })
-})
-
-describe('withdrawal', () => {
-  it('burns tax from requested gross', () => {
-    expect(withdrawal({ amountGross: 60000, taxRate: 30 }))
-      .toEqual({ taxAmount: 18000, net: 42000 })
   })
 })
 
