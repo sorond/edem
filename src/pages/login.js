@@ -41,7 +41,11 @@ export function renderLogin(root) {
     error.hidden = true
     try {
       await signIn(role, input.value)
-      location.hash = '#/home'
+      if (location.hash === '#/home') {
+        window.dispatchEvent(new HashChangeEvent('hashchange'))
+      } else {
+        location.hash = '#/home'
+      }
     } catch {
       error.hidden = false
       input.focus()
