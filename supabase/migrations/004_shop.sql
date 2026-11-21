@@ -255,6 +255,7 @@ begin
         'items', coalesce((
           select jsonb_agg(
             jsonb_build_object(
+              'itemId', oi.item_id,
               'nameSnapshot', oi.name_snapshot, 'iconSnapshot', oi.icon_snapshot,
               'unitPrice', oi.unit_price, 'quantity', oi.quantity,
               'lineTotal', oi.line_total

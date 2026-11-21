@@ -703,6 +703,52 @@ th {
   padding: 4px 6px;
 }
 
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shop-edit {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--deep);
+}
+
+.shop-edit__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.shop-item {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.shop-item__head {
+  margin-bottom: 12px;
+  letter-spacing: 0.12em;
+}
+
+.shop-item .login__form {
+  max-width: none;
+}
+
+.shop-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: var(--fg-dim);
+  letter-spacing: 0.12em;
+}
+
 @media (max-width: 640px) {
   .shop-table-wrap {
     overflow-x: auto;
