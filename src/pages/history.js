@@ -1,4 +1,5 @@
 import { getHistory } from '../api.js'
+import { isShopHistoryRow, shopAmountNote } from '../historyView.js'
 
 const CELL = 'style="border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top;"'
 const NOTE_CELL = 'style="border: 1px solid var(--border); padding: 8px; text-align: left; color: var(--fg-dim);"'
@@ -8,6 +9,7 @@ const FILTERS = [
   { id: 'withdrawal', label: 'Выплаты', entities: ['withdrawal'] },
   { id: 'report', label: 'Рапорты', entities: ['report'] },
   { id: 'task', label: 'Задания', entities: ['task'] },
+  { id: 'shop', label: 'Магазин', entities: ['shop_item', 'shop_order'] },
 ]
 
 const ACTION_LABEL = {
@@ -22,6 +24,15 @@ const ACTION_LABEL = {
   archive_task: 'АРХИВАЦИЯ ЗАДАНИЯ',
   create_tax_event: 'НАЛОГОВОЕ СОБЫТИЕ',
   update_settings: 'ИЗМЕНЕНИЕ НАСТРОЕК',
+  shop_create_item: 'СОЗДАНИЕ ТОВАРА',
+  shop_update_item: 'ОБНОВЛЕНИЕ ТОВАРА',
+  shop_set_item_active: 'СТАТУС ТОВАРА',
+  shop_create_order: 'ЗАКАЗ МАГАЗИНА',
+  shop_cancel_order: 'ОТМЕНА ЗАКАЗА',
+  shop_edit_order: 'РЕДАКТИРОВАНИЕ ЗАКАЗА',
+  shop_approve_order: 'ОДОБРЕНИЕ ЗАКАЗА',
+  shop_reject_order: 'ОТКЛОНЕНИЕ ЗАКАЗА',
+  shop_rollback_order: 'ОТКАТ ЗАКАЗА',
 }
 
 const ENTITY_LABEL = {
@@ -31,6 +42,8 @@ const ENTITY_LABEL = {
   withdrawal: 'ВЫПЛАТА',
   tax_event: 'НАЛОГ',
   settings: 'НАСТРОЙКИ',
+  shop_item: 'ТОВАР',
+  shop_order: 'ЗАКАЗ',
 }
 
 const TIME_FORMAT = new Intl.DateTimeFormat('ru-RU', {
@@ -87,7 +100,9 @@ function sortByNewest(rows) {
 
 function matchesFilter(row, filterId) {
   const filter = FILTERS.find((item) => item.id === filterId)
-  return !filter || filter.entities === null || filter.entities.includes(row.entity)
+  if (!filter || filter.entities === null) return true
+  if (filter.id === 'shop') return isShopHistoryRow(row)
+  return filter.entities.includes(row.entity)
 }
 
 function isManualTreasuryEdit(row) {
@@ -97,6 +112,7 @@ function isManualTreasuryEdit(row) {
 function rowHtml(row) {
   const comment = String(row.comment ?? '').trim()
   const shownComment = comment ? escapeHtml(comment) : '—'
+  const amountNote = isShopHistoryRow(row) ? shopAmountNote(row) : null
   const main = `
     <tr>
       <td ${CELL}>${formatTime(row.created_at)}</td>
@@ -106,12 +122,22 @@ function rowHtml(row) {
     </tr>
   `
 
-  if (!isManualTreasuryEdit(row)) return main
-  return `${main}
+  let extra = ''
+  if (isManualTreasuryEdit(row)) {
+    extra += `
     <tr>
       <td ${NOTE_CELL} colspan="4">КОММЕНТАРИЙ: ${shownComment}</td>
     </tr>
   `
+  }
+  if (amountNote) {
+    extra += `
+    <tr>
+      <td ${NOTE_CELL} colspan="4">${escapeHtml(amountNote)}</td>
+    </tr>
+  `
+  }
+  return `${main}${extra}`
 }
 
 function rowsHtml(rows) {
