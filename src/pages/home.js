@@ -2,6 +2,7 @@ import { callRpc, getTreasury, getTasks } from '../api.js'
 import { getRole } from '../auth.js'
 import { formatMoney } from '../format.js'
 import { notify, playBeep } from '../notify.js'
+import { mountShopTab } from '../shop/curator.js'
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -218,15 +219,49 @@ export async function renderHome(root) {
           <div class="treasury__label">КАЗНА ФРАКЦИИ</div>
           <div class="treasury__amount">${formatMoney(balance)}</div>
         </div>
-        <div class="task-columns">
-          ${taskColumn('ЕЖЕНЕДЕЛЬНЫЕ', weekly)}
-          ${taskColumn('СРОЧНЫЕ', urgent)}
+        ${
+          role === 'curator'
+            ? `<div class="shop-tabs login__tabs" role="tablist" aria-label="РАЗДЕЛЫ ГЛАВНОЙ">
+              <button class="tab tab--active" type="button" role="tab" aria-selected="true" data-shop-tab="tasks">ЗАДАНИЯ</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-shop-tab="shop">МАГАЗИН</button>
+            </div>`
+            : ''
+        }
+        <div class="shop-panel" data-shop-panel="tasks">
+          <div class="task-columns">
+            ${taskColumn('ЕЖЕНЕДЕЛЬНЫЕ', weekly)}
+            ${taskColumn('СРОЧНЫЕ', urgent)}
+          </div>
         </div>
+        ${role === 'curator' ? '<div class="shop-panel" data-shop-panel="shop" hidden></div>' : ''}
         ${role === 'curator' ? withdrawalFormHtml() : ''}
       </section>
     `
 
-    if (role === 'curator') await mountWithdrawalForm(root)
+    if (role === 'curator') {
+      const tabs = [...root.querySelectorAll('[data-shop-tab]')]
+      const panels = [...root.querySelectorAll('[data-shop-panel]')]
+      const shopPanel = root.querySelector('[data-shop-panel="shop"]')
+
+      for (const tab of tabs) {
+        tab.addEventListener('click', async () => {
+          const name = tab.dataset.shopTab
+          for (const other of tabs) {
+            const active = other === tab
+            other.classList.toggle('tab--active', active)
+            other.setAttribute('aria-selected', String(active))
+          }
+          for (const panel of panels) panel.hidden = panel.dataset.shopPanel !== name
+
+          if (name === 'shop' && shopPanel && shopPanel.dataset.shopLoaded !== '1') {
+            shopPanel.innerHTML = '<p class="placeholder">ЗАГРУЗКА...</p>'
+            await mountShopTab(root)
+          }
+        })
+      }
+
+      await mountWithdrawalForm(root)
+    }
     if (token !== urgentPollToken) return
     startUrgentPolling(token)
   } catch (error) {
