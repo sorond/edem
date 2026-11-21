@@ -4,6 +4,10 @@
 
 Сайт только считает и фиксирует операции. **Реальные деньги в игре Эдем передаёт вручную.**
 
+## Шрифт
+
+`assets/fonts/FF_troublemarker.otf` — Troublemarker RUS, Copyright (c) 2017 Jakob Fischer / pizzadude.dk. All rights reserved. Used for the curator's ambient words; source: https://fonts-online.ru/fonts/troublemarker-rus
+
 ## Развёртывание
 
 ### 1. Создать проект Supabase
